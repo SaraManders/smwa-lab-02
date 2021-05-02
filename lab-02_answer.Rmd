@@ -1,6 +1,6 @@
 ---
-title: "My answers"
-author: "My name"
+title: "Sara's answers lab 02 smwa"
+author: "Sara Manders"
 date: '`r format(Sys.time(), "%d %B, %Y")`'
 output: html_document
 ---
@@ -85,7 +85,7 @@ library(modelsummary)
 1. Load the data. The data is stored as a Stata dataset, so it can be loaded with the `read_dta()` function from `haven`.
 
 ```{r}
-# Write your answer here
+sex_data <- read_dta("data/sasp_panel.dta")
 ```
 
 
