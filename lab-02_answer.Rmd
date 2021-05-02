@@ -97,7 +97,7 @@ sex_data <- read_dta("data/sasp_panel.dta")
 Write a short command to drop any rows which have missing values from the data.
 
 ```{r}
-# Write your answer here
+sex_data <- sex_data %>% na.omit()
 ```
 
 
@@ -109,7 +109,24 @@ Your plot should therefore have two histograms, potentially overlaying each othe
 Does there appear to be a difference in price between safe and unsafe sex?
 
 ```{r}
-# Write your answer here
+
+ggplot(sex_data, aes(x=lnw, fill=unsafe, color=unsafe)) +
+    geom_histogram(position = "identity") +
+    xlab("Log Hourly Wage Sex Workers") +
+    ylab("Count") +
+    ggtitle("Histogram of log hourly wage for safe vs. unsafe sex",
+            subtitle = "Hourly wage of online sex workers - 1 = unsafe (no condom). 0 = safe (condom)")+
+    facet_wrap(~ unsafe)
+
+ggplot(sex_data, aes(x=lnw, fill=unsafe, color=unsafe)) +
+    geom_histogram(position = "identity", alpha = 0.5) +
+    xlab("Log Hourly Wage Sex Workers") +
+    ylab("Count") +
+    ggtitle("Histogram of log hourly wage for safe vs. unsafe sex",
+            subtitle = "Hourly wage of online sex workers - 1 = unsafe (no condom). 0 = safe (condom)")+
+    scale_color_brewer(palette = "Dark2") +
+    scale_fill_brewer(palette = "Dark2")
+
 ```
 
 4. Let's formalize this idea with a regression.
@@ -117,7 +134,17 @@ Run a single variable regression of log hourly wage, `lnw` on the variable `unsa
 Report the results.
 
 ```{r}
-# Write your answer here
+
+reg1 <- lm(unsafe ~ lnw, data = sex_data)
+reg1
+
+# Coefficients
+#  Intercept = 0.71145
+#  lnw = -0.03154
+
+summary(reg1)
+# p-value = .1978 > .05 --> can't reject H0
+
 ```
 
 
