@@ -151,12 +151,17 @@ summary(reg1)
 5. Interpret the coefficient on `unsafe`.
 Is it statistically significant?
 
-Write your answer here
+The coefficient is negative, but not statistically significant. Therefore, whether the sex was (un)safe is not expected to significantly effect the hourly wage.
 
 6. A single variable regression most likely suffers from omitted variable bias. 
 Explain what omitted variable bias is, and why it might impact your regression estimates.
 
-Write your answer here
+The omitted variable bias is the bias in the OLS estimator that arises when the regressor, X, is correlated with an omitted variable (non-included variables in the model which are determinants of the dependent variable). For omitted variable bias to occur, two conditions must be fulfilled:
+1. X is correlated with the omitted variable
+2. The omitted variable is a determinant of the dependent variable Y.
+Together, these result in a violation of the first OLS assumption E(u(i) | X(i)) = 0.
+
+This might imparct our regression estimates, because the dependent variable has not been optimally explained and not including these omitted variables might return either false positives in findings or non-statistical findings because not all determinants have been included in the analysis.
 
 
 7. Add the log of the length of the session, `llength`, as a second variable to your regression.
@@ -164,7 +169,14 @@ Report the results.
 Did the coefficient on `unsafe` change?
 
 ```{r}
-# Write your answer here
+
+reg2 <- lm(unsafe ~ lnw + llength, sex_data)
+summary(reg2)
+
+# The p-value of the overall test = <.001 which implies statistical significance
+# However, neither the intercept nor the coefficient of lnw are statistically significant.
+# Only the llength has a (small positive; 6,5%) statistical signficant effect on unsafe, which means that a longer length of the session increases the likelihood for a session to have included unsafe sex.
+
 ```
 
 
