@@ -195,6 +195,19 @@ Together, these result in a violation of the first OLS assumption E(u(i) | X(i))
 
 This might imparct our regression estimates, because the dependent variable has not been optimally explained and not including these omitted variables might return either false positives in findings or non-statistical findings because not all determinants have been included in the analysis.
 
+#proposed solution
+
+Omitted Variable Bias = the effect of leaving out one or more relevant variables on the regression coefficients in the "misspecified" regression.
+
+For omitted variable bias to occur we need:
+1. The included X variable(s) to be correlated with the omitted variable
+2. The omtitted variable to be a relevant determinant of y
+
+(1) and (2) leave to a violation of the exogeneity assumption E(u(i)|x(i)) = 0. When we don't have exogeneity,
+
+E (B) = beta + bias
+
+which means that our estimated coefficient cannot accurately estimate the true population parameter, and thus can't be interpreted causally.
 
 7. Add the log of the length of the session, `llength`, as a second variable to your regression.
 Report the results.
@@ -211,12 +224,32 @@ summary(reg2)
 
 #Regr estimate = 0.241956 (p >.05)
 
+#proposed solution
+
+twovar_reg <- lm(lnw ~ unsafe + llength, data = sasp)
+
+tidy(twovar_reg, conf.int = TRUE)
+
 ```
 
 
 8. Explain why ignoring `llength` in your regression led to the coefficient on `unsafe` to be different in sign in the single variable regression than in the two variable regression.
 
-Write your answer here
+#proposed solution
+
+The formula for Omitted Variable Bias (assuming omitted variable, x(2) has coefficient Beta(2))
+
+E(B(1) = Beta(1) + Beta(2) * ((Cov(x1, x2)/ std dev(x2))))
+
+One  would reason that:
+* Beta(2) < 0 ... longer sessions lead to quantity discounts
+* Cov (x1, x2) > 0 ... longer sessions more likely to feature unsafe sex
+
+--> Bias is negative, so that:
+E (B(1)) = Beta (1) + something negative
+< Beta(1)
+
+Dus de estimate van variable x1 is kleiner dan de werkelijke waarde van x1 (unsafe sex)
 
 9.  Add a third variable to the regression, whether the client is a regular or not (`reg` in the data).
 Report your results and comment on any change in the regression estimate of `unsafe`.
@@ -227,6 +260,12 @@ summary(reg3)
 
 # Regr. estimate of unsafe = 0228257 (p>.05) --> not statistically significant
 
+#proposed solution
+
+threevar_reg <- lm(lnw ~ unsafe + llength + reg, data =sasp)
+
+tidy(threevar_reg, conf.int = TRUE)
+
 ```
 
 
@@ -234,6 +273,30 @@ summary(reg3)
 What is unobserved heterogeneity? Why might it matter?
 
 Unobserved heterogeneity implies there is a group difference within the sample (unobserved), within groups there is homogeneity, but across groups there is heterogeneity. It matters because researchers can be severely misled if not accounting for these group differences.
+
+#proposed solution
+
+Unobserved heterogeneity: unmeasured (typically time invariant) differences between (in this case) providers.
+
+Think as follows: we have not included any variable about the provider so far - and there might be something about them that influences the prices they charge AND their willingness to engage in unsafe sex.
+
+Omitting unobserved heterogeneity - which in what follows is provider fixed effects - leads to omitted variable bias.
+
+UP TO US: THINK THROUGH THE LIKELY DIRECTION OF THAT BIAS
+
+Solving omitted unobserverd heterogeneity, would most likely solve the omitted variable bias.
+
+http://www.eco.uc3m.es/docencia/EconomiaAplicada/materiales/PanelData_2classes.pdf - Fixed Effects model:
+
+Y(it) = β(0) + β(1)X(it) + δ(0)d2(t) + a(i) + u(it)
+
+ai = unobservable, time invariant variation or heterogeneity
+u(it) = usual error term (includes unobserved factors affecting Y(it) that change over time)
+v(it) = a(i) + u(it) --> composite error: it has a constant component and a component that changes over time
+
+Y(it) = β(0) + β(1)X(it) + δ(0)d2(t) + v(it)
+
+To consistently estimate β(1) using OLS, we need to assume that X(it) is NOT correlated with v(it)
 
 11. The data has a unique identifier for each provider in the `id` column.
 Use the `feols()` command from the `fixest` package to re-estimate your regression in (9) adding the provider ID fixed effects.
@@ -257,6 +320,21 @@ coefs_fe
 
 # Non-clustered standard errors --> all IVs statistically significant <.001 
 
+
+#proposed solution
+
+fixedeff <- feols(lnw ~ unsafe + reg + llength | id, data = sasp)
+
+tidy(fixedeff, se = "standard", conf.int = TRUE)
+
+round(exp(mean(sasp$lnw)))
+#275
+
+round(exp(mean(sasp$lnw))) * 1.05
+#288.75
+
+Increase <- (round(exp(mean(sasp$lnw)))*.05)
+Increase #13.75 p. hour (4.7%)
 ```
 
 
@@ -265,6 +343,16 @@ Is the coefficient on `unsafe` now statistically significant?
 Is the coefficient large from a 'marketing' viewpoint?
 
 Where exactly can I find the coefficient on unsafe????
+
+
+#proposed solution
+
+On average, unsafe sex increases the log hourly wage by 4.7% (holding other variables constant).
+
+Our effect is statistically significant at the 10% level of significance (p-value <.1) but not at the 5% level (p-value >.05).
+
+Is this big? It's approximately a 5% increase. The mean hourly wage is r round(exp(mean(sasp$lnw))-1,0) so a five percent increase is 'round(0.05*(exp(mean(sasplwn)))-1),0)' per hour. That really isn't that much of a premium.
+
 
 Your next concern should be the standard errors - and whether we have 'correctly' adjusted for heteroskedasticity and/or clustering.
 
@@ -306,6 +394,21 @@ sex_data %>%
     theme_bw() +
     theme(legend.position = "none")
 
+
+
+#proposed solution
+
+sasp <- sasp%>%
+    mutate(resid = residuals(fixedeff),
+           fitted = predict(fixedeff))
+
+sasp %>%
+    ggplot(aes(x = fitted, y = resid)) +
+    geom_point() +
+    geom_smooth() +
+    theme_bw() +
+    ggtitle("Not much evidence of heteroskedasticity")
+
 ```
 
 
@@ -324,6 +427,12 @@ ols1a <- lm_robust(unsafe ~ lnw + llength + reg | id,
 
 tidy(ols1a, conf.int = TRUE)
 
+
+#proposed solution
+
+tidy(fixedeff, se ="hetero", conf.int = TRUE)
+#Doesn't change much
+
 ```
 
 
@@ -338,6 +447,13 @@ ols2 <- lm_robust(unsafe ~ lnw + llength + reg | id,
                   data = sex_data)
 
 tidy(ols2, conf.int = TRUE)
+
+
+#proposed solution
+
+tidy(fixedeff, se = "cluster", conf.int = TRUE)
+
+#You might want to cluster the standard errors by id, because those are the fixed effects. This way, you basically take into account differences between clusters based on time invariant factors between the observations.
 
 ```
 
@@ -356,6 +472,15 @@ ols2a <- feols(unsafe ~ lnw + llength + id |
 
 tidy(ols2a, se = "standard", conf.int = TRUE)
 
+
+#proposed solution
+
+fixedeff_het <- feols(lnw~unsafe:reg + unsafe + reg + llength | id,
+                      cluster = ~id,
+                      data=sasp)
+
+tidy(fixedeff_het, conf.int = TRUE)
+
 ```
 
 
@@ -363,9 +488,28 @@ tidy(ols2a, se = "standard", conf.int = TRUE)
 
 ???
 
+
+#proposed solution
+
+Neither unsafe, nor unsafe:reg are statistically significant (p-value > .1), so these findings are not overwhelming evidence for differences.
+
+If we would look at the coefficients, we find that there is evidence of price discrimination. 
+Providers charge a higher price for unsafe sex with clients who are regulars than those who aren't.
+
+A potential reason could be that regulars are less likely to switch to a different provider, so they're taken advantage of and charged a higher premium.
+I wouldn't want to push this argument too hard.
+
 18. Are the effects you documented *causal*, *descriptive* or *predictive*?  Explain your answer.
 
 Descriptive, because ...
+
+
+#proposed solution
+
+For the heterogeneity results - descriptive. There is a bunch of "selection on unobservables" issues and potentially omitted variables that would make causal interpretation highly arguable.
+
+For the earlier regressions - the authors of the survey would argue causal interpretation after adding the fixed effects for the provider.
+Essentially, they'd argue that the coefficient on unsafe is being estimated by differences in wages between unsafe and safe sex within each provider.
 
 Now that you have run a series of regressions, you want to present the results in a way that you could use in a report or a presentation.
 
@@ -374,14 +518,48 @@ You can choose any of the estimates you like to produce the table, but we encour
 The final result should look similar to a regression table you see in academic publications.
 
 ```{r}
-# Write your answer here
+
+
+#proposed solution
+
+#a simple table - minimum customization
+
+mods <- list(simple_reg,
+             threevar_reg,
+             fixedeff,
+             fixedeff_het)
+
+msummary(mods,
+         coef_omit = "Interc",
+         gof_omit = "AIC|BIC|Log|Pseudo|F")
+
+
+
 ```
 
 20. Take your regression estimates and produce a coefficient plot to summarize four of them in one place. 
 You can choose any of the estimates you like to produce the plot, but we encourage you to think about the plot you produce can be used as part of a story you could tell to explain your findings.
 
 ```{r}
-# Write your answer here
+
+
+#proposed solution
+
+#heterog is more difficult to plot, so Lachlan ignored it
+
+mods2 <- list(simple_reg,
+             threevar_reg,
+             fixedeff)
+
+modelplot(mods2,
+          coef_omit = "Interc|reg|11") +
+    geom_vline(xintercept = 0,
+               alpha=.5,
+               linetype = "dashed") +
+    xlab("Coefficient Estimate + 95% CI") +
+    coord_flip() +
+    theme_bw()
+
 ```
 
 ## License
