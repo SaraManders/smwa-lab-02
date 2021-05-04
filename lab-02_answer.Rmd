@@ -86,6 +86,9 @@ library(modelsummary)
 
 ```{r}
 sex_data <- read_dta("data/sasp_panel.dta")
+
+#proposed solution
+sasp <- read_dta("data/sasp_panel.dta")
 ```
 
 
@@ -98,6 +101,10 @@ Write a short command to drop any rows which have missing values from the data.
 
 ```{r}
 sex_data <- sex_data %>% na.omit()
+
+#proposed solution
+sasp <- sasp %>%
+    drop_na()
 ```
 
 
@@ -127,6 +134,15 @@ ggplot(sex_data, aes(x=lnw, fill=unsafe, color=unsafe)) +
     scale_color_brewer(palette = "Dark2") +
     scale_fill_brewer(palette = "Dark2")
 
+
+#proposed solution
+sasp %>%
+    ggplot(aes(x= lnw, fill = factor(unsafe))) +
+    geom_histogram(aes(y=stat(count/sum(count))), alpha = 0.6) +
+    scale_fill_manual(values=c("#69b3a2", "#404080")) +
+    ylab("Fraction of Bookings") +
+    xlab("Log Hourly Wage") +
+    theme_bw()
 ```
 
 4. Let's formalize this idea with a regression.
@@ -144,6 +160,13 @@ reg1
 
 summary(reg1)
 # p-value = .1978 > .05 --> can't reject H0
+# regr. estimate = .71145*** (p <.001)
+
+
+#proposed solution
+simple_reg <- lm(lnw ~ unsafe, data = sasp)
+
+tidy(simple_reg, conf.int = TRUE)
 
 ```
 
@@ -152,6 +175,15 @@ summary(reg1)
 Is it statistically significant?
 
 The coefficient is negative, but not statistically significant. Therefore, whether the sex was (un)safe is not expected to significantly effect the hourly wage.
+
+#proposed solution
+(1) On average, unsafe sex decreases the log hourly wage by 0.035
+(2) On average, unsafe sex decreases the hourly wage by ± 3.5%
+
+Interpretation 2 utilizes the log-level interpretation of the regression. Technically, the size of the effect is (exp B1 - 1) * 100%, for small values of B1, exp B1-1 = ± B
+
+Statistical significance: the p-value = .198 > .05, so the effect is not statistically significant at the 5% level of significance.
+
 
 6. A single variable regression most likely suffers from omitted variable bias. 
 Explain what omitted variable bias is, and why it might impact your regression estimates.
@@ -177,6 +209,8 @@ summary(reg2)
 # However, neither the intercept nor the coefficient of lnw are statistically significant.
 # Only the llength has a (small positive; 6,5%) statistical signficant effect on unsafe, which means that a longer length of the session increases the likelihood for a session to have included unsafe sex.
 
+#Regr estimate = 0.241956 (p >.05)
+
 ```
 
 
@@ -188,21 +222,41 @@ Write your answer here
 Report your results and comment on any change in the regression estimate of `unsafe`.
 
 ```{r}
-# Write your answer here
+reg3 <- lm(unsafe ~ lnw + llength + reg, sex_data)
+summary(reg3)
+
+# Regr. estimate of unsafe = 0228257 (p>.05) --> not statistically significant
+
 ```
 
 
 10. When discussing your interim results with a friend who is a bit of a statistical whiz they make the following remark: "I think you're not getting the expected results due to unobserved heterogeneity. Try adding fixed effects for each provider."
 What is unobserved heterogeneity? Why might it matter?
 
-Write your answer here
+Unobserved heterogeneity implies there is a group difference within the sample (unobserved), within groups there is homogeneity, but across groups there is heterogeneity. It matters because researchers can be severely misled if not accounting for these group differences.
 
 11. The data has a unique identifier for each provider in the `id` column.
 Use the `feols()` command from the `fixest` package to re-estimate your regression in (9) adding the provider ID fixed effects.
 Report your results with 'normal' standard errors (i.e. no clustering).
 
 ```{r}
-# Write your answer here
+
+library(fixest)
+
+ols_fe <- feols(unsafe ~ lnw + llength + reg 
+                | #Fixed effects go after the |
+                    id,
+                data = sex_data)
+
+summary(ols_fe)
+
+# Estimates of all IVs are significant at least at the 10% level
+
+coefs_fe <- tidy(ols_fe, se ="standard", conf.int = TRUE)
+coefs_fe
+
+# Non-clustered standard errors --> all IVs statistically significant <.001 
+
 ```
 
 
@@ -210,7 +264,7 @@ Report your results with 'normal' standard errors (i.e. no clustering).
 Is the coefficient on `unsafe` now statistically significant?
 Is the coefficient large from a 'marketing' viewpoint?
 
-Write your answer here
+Where exactly can I find the coefficient on unsafe????
 
 Your next concern should be the standard errors - and whether we have 'correctly' adjusted for heteroskedasticity and/or clustering.
 
@@ -222,7 +276,36 @@ Does there appear to be evidence of heteroskedasticity?
 
 
 ```{r}
-# Write your answer here
+
+pred_val <- predict(ols_fe)
+pred_val
+res_val <- residuals(ols_fe)
+res_val
+
+df <- cbind(pred_val, res_val)
+df <- data.frame(df)
+
+ggplot(df, aes(x = pred_val, y = res_val)) +
+    geom_point()
+
+# Yes, there appears to be evidence of heteroskedasticity
+
+# Or I could do:
+
+sex_data <- sex_data %>%
+    mutate(
+        residuals = resid(ols_fe),
+        fitted_val = predict(ols_fe)
+    )
+
+sex_data %>%
+    ggplot(aes(x = fitted_val, 
+               y = residuals,
+               alpha = 0.35)) +
+    geom_point() +
+    theme_bw() +
+    theme(legend.position = "none")
+
 ```
 
 
@@ -232,7 +315,15 @@ Does the standard error on `unsafe` change by much?
 Is this consistent with what you found graphically above?
 
 ```{r}
-# Write your answer here
+#install.packages("estimatr")
+library(estimatr)
+library(broom)
+
+ols1a <- lm_robust(unsafe ~ lnw + llength + reg | id,
+                   data = sex_data)
+
+tidy(ols1a, conf.int = TRUE)
+
 ```
 
 
@@ -241,7 +332,13 @@ Again, you might be able to do this **without** re-estimating the regression mod
 Why might you want to cluster the standard errors this way?
 
 ```{r}
-# Write your answer here
+
+ols2 <- lm_robust(unsafe ~ lnw + llength + reg | id,
+                  clusters = id,
+                  data = sex_data)
+
+tidy(ols2, conf.int = TRUE)
+
 ```
 
 
@@ -252,17 +349,23 @@ Do this by modifying your regression command from (11).
 Report your results and discuss your findings.
 
 ```{r}
-# Write your answer here
+
+ols2a <- feols(unsafe ~ lnw + llength + id |
+                   reg,
+               data = sex_data)
+
+tidy(ols2a, se = "standard", conf.int = TRUE)
+
 ```
 
 
 17. Interpret the results you found in (16).
 
-Write your answer here
+???
 
 18. Are the effects you documented *causal*, *descriptive* or *predictive*?  Explain your answer.
 
-Write your answer here
+Descriptive, because ...
 
 Now that you have run a series of regressions, you want to present the results in a way that you could use in a report or a presentation.
 
